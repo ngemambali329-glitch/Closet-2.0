@@ -1,0 +1,326 @@
+// ===== DRAPE STORE =====
+
+(function () {
+  'use strict';
+
+  // ---- STATE ----
+  let cart = DB.getCart();
+  let currentFilter = 'all';
+  let deleteTargetId = null;
+
+  // ---- DOM REFS ----
+  const productGrid   = document.getElementById('productGrid');
+  const emptyState    = document.getElementById('emptyState');
+  const cartToggle    = document.getElementById('cartToggle');
+  const cartDrawer    = document.getElementById('cartDrawer');
+  const cartOverlay   = document.getElementById('cartOverlay');
+  const closeCart     = document.getElementById('closeCart');
+  const cartItems     = document.getElementById('cartItems');
+  const cartFooter    = document.getElementById('cartFooter');
+  const cartEmpty     = document.getElementById('cartEmpty');
+  const cartCount     = document.getElementById('cartCount');
+  const cartTotal     = document.getElementById('cartTotal');
+  const checkoutBtn   = document.getElementById('checkoutBtn');
+  const checkoutOvl   = document.getElementById('checkoutOverlay');
+  const closeChkout   = document.getElementById('closeCheckout');
+  const placeOrderBtn = document.getElementById('placeOrderBtn');
+  const successOvl    = document.getElementById('successOverlay');
+  const closeSuccess  = document.getElementById('closeSuccess');
+  const successMsg    = document.getElementById('successMsg');
+  const quickviewOvl  = document.getElementById('quickviewOverlay');
+  const closeQV       = document.getElementById('closeQuickview');
+  const quickviewInner= document.getElementById('quickviewInner');
+  const filterBtns    = document.querySelectorAll('.filter-btn');
+  const statItems     = document.getElementById('statItems');
+
+  // ---- RENDER PRODUCTS ----
+  function renderProducts() {
+    const allProducts = DB.getProducts();
+    const filtered = currentFilter === 'all'
+      ? allProducts
+      : allProducts.filter(p => p.category === currentFilter);
+
+    productGrid.innerHTML = '';
+    if (filtered.length === 0) {
+      emptyState.style.display = 'block';
+      productGrid.style.display = 'none';
+    } else {
+      emptyState.style.display = 'none';
+      productGrid.style.display = 'grid';
+      filtered.forEach(p => {
+        const card = createProductCard(p);
+        productGrid.appendChild(card);
+      });
+    }
+    if (statItems) statItems.textContent = allProducts.length;
+  }
+
+  function createProductCard(p) {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    card.dataset.id = p.id;
+
+    const imgHtml = p.image
+      ? `<img class="product-card-img" src="${p.image}" alt="${escHtml(p.name)}" loading="lazy"/>`
+      : `<div class="product-card-img-placeholder">👗</div>`;
+
+    const inStock = p.stock > 0;
+    const sizesHtml = p.sizes
+      ? `<div class="product-card-sizes">${escHtml(p.sizes)}</div>` : '';
+
+    card.innerHTML = `
+      ${imgHtml}
+      <div class="product-card-body">
+        <div class="product-card-cat">${escHtml(p.category)}</div>
+        <div class="product-card-name">${escHtml(p.name)}</div>
+        ${sizesHtml}
+        <div class="product-card-footer">
+          <span class="product-price">R${Number(p.price).toFixed(2)}</span>
+          ${inStock
+            ? `<button class="add-to-cart-btn" data-id="${p.id}">Add to Cart</button>`
+            : `<span class="out-of-stock-badge">Out of Stock</span>`}
+        </div>
+      </div>`;
+
+    // Quickview on image/name click
+    const imgEl = card.querySelector('.product-card-img, .product-card-img-placeholder');
+    const nameEl = card.querySelector('.product-card-name');
+    if (imgEl) imgEl.addEventListener('click', () => openQuickview(p));
+    if (nameEl) nameEl.addEventListener('click', () => openQuickview(p));
+
+    // Add to cart
+    const addBtn = card.querySelector('.add-to-cart-btn');
+    if (addBtn) addBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      addToCart(p);
+      animateCartBtn();
+    });
+
+    return card;
+  }
+
+  // ---- QUICKVIEW ----
+  function openQuickview(p) {
+    const inStock = p.stock > 0;
+    const imgHtml = p.image
+      ? `<img class="quickview-img" src="${p.image}" alt="${escHtml(p.name)}"/>`
+      : `<div class="quickview-img" style="background:linear-gradient(135deg,#f0ebe4,#e0d8cd);display:flex;align-items:center;justify-content:center;font-size:4rem;">👗</div>`;
+
+    quickviewInner.innerHTML = `
+      ${imgHtml}
+      <div class="quickview-info">
+        <div class="product-card-cat">${escHtml(p.category)}</div>
+        <h3>${escHtml(p.name)}</h3>
+        <div class="quickview-price">R${Number(p.price).toFixed(2)}</div>
+        ${p.sizes ? `<div class="quickview-stock">Sizes: ${escHtml(p.sizes)}</div>` : ''}
+        ${p.description ? `<div class="quickview-desc">${escHtml(p.description)}</div>` : ''}
+        <div class="quickview-stock">${inStock ? `In stock (${p.stock} available)` : '<span style="color:var(--red)">Out of stock</span>'}</div>
+        ${inStock ? `<button class="btn-primary" id="qvAddCart" data-id="${p.id}">Add to Cart</button>` : ''}
+      </div>`;
+
+    const qvBtn = quickviewInner.querySelector('#qvAddCart');
+    if (qvBtn) qvBtn.addEventListener('click', () => {
+      addToCart(p);
+      animateCartBtn();
+      quickviewOvl.style.display = 'none';
+    });
+
+    quickviewOvl.style.display = 'flex';
+  }
+
+  closeQV.addEventListener('click', () => quickviewOvl.style.display = 'none');
+  quickviewOvl.addEventListener('click', (e) => { if (e.target === quickviewOvl) quickviewOvl.style.display = 'none'; });
+
+  // ---- CART ----
+  function addToCart(p) {
+    const existing = cart.find(i => i.id === p.id);
+    if (existing) {
+      if (existing.qty < p.stock) existing.qty++;
+    } else {
+      cart.push({ id: p.id, name: p.name, price: p.price, image: p.image, qty: 1 });
+    }
+    DB.saveCart(cart);
+    renderCart();
+    openCartDrawer();
+  }
+
+  function renderCart() {
+    cartItems.innerHTML = '';
+    const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+    cartCount.textContent = cart.reduce((s, i) => s + i.qty, 0);
+    cartTotal.textContent = `R${total.toFixed(2)}`;
+
+    if (cart.length === 0) {
+      cartEmpty.style.display = 'flex';
+      cartFooter.style.display = 'none';
+      return;
+    }
+    cartEmpty.style.display = 'none';
+    cartFooter.style.display = 'block';
+
+    cart.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'cart-item';
+      const imgHtml = item.image
+        ? `<img class="cart-item-img" src="${item.image}" alt="${escHtml(item.name)}"/>`
+        : `<div class="cart-item-img" style="display:flex;align-items:center;justify-content:center;font-size:1.8rem;background:#f0ebe4;">👗</div>`;
+      row.innerHTML = `
+        ${imgHtml}
+        <div class="cart-item-info">
+          <div class="cart-item-name">${escHtml(item.name)}</div>
+          <div class="cart-item-price">R${item.price.toFixed(2)} each</div>
+          <div class="cart-item-qty">
+            <button class="qty-btn" data-id="${item.id}" data-action="dec">−</button>
+            <span class="qty-num">${item.qty}</span>
+            <button class="qty-btn" data-id="${item.id}" data-action="inc">+</button>
+          </div>
+        </div>
+        <button class="remove-item" data-id="${item.id}">Remove</button>`;
+      cartItems.appendChild(row);
+    });
+
+    cartItems.querySelectorAll('.qty-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const action = btn.dataset.action;
+        const item = cart.find(i => i.id === id);
+        if (!item) return;
+        if (action === 'inc') {
+          const product = DB.getProducts().find(p => p.id === id);
+          if (product && item.qty < product.stock) item.qty++;
+        } else {
+          item.qty--;
+          if (item.qty <= 0) cart = cart.filter(i => i.id !== id);
+        }
+        DB.saveCart(cart);
+        renderCart();
+      });
+    });
+    cartItems.querySelectorAll('.remove-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        cart = cart.filter(i => i.id !== btn.dataset.id);
+        DB.saveCart(cart);
+        renderCart();
+      });
+    });
+  }
+
+  function openCartDrawer() {
+    cartDrawer.classList.add('open');
+    cartOverlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCartDrawer() {
+    cartDrawer.classList.remove('open');
+    cartOverlay.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  cartToggle.addEventListener('click', openCartDrawer);
+  closeCart.addEventListener('click', closeCartDrawer);
+  cartOverlay.addEventListener('click', closeCartDrawer);
+
+  function animateCartBtn() {
+    cartToggle.style.transform = 'scale(1.2)';
+    setTimeout(() => cartToggle.style.transform = '', 200);
+  }
+
+  // ---- CHECKOUT ----
+  checkoutBtn.addEventListener('click', () => {
+    renderOrderSummary();
+    closeCartDrawer();
+    checkoutOvl.style.display = 'flex';
+  });
+  closeChkout.addEventListener('click', () => checkoutOvl.style.display = 'none');
+  checkoutOvl.addEventListener('click', (e) => { if (e.target === checkoutOvl) checkoutOvl.style.display = 'none'; });
+
+  function renderOrderSummary() {
+    const summary = document.getElementById('orderSummary');
+    const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+    let html = cart.map(i => `
+      <div class="order-summary-item">
+        <span>${escHtml(i.name)} × ${i.qty}</span>
+        <span>R${(i.price * i.qty).toFixed(2)}</span>
+      </div>`).join('');
+    html += `<div class="order-summary-total"><span>Total</span><span>R${total.toFixed(2)}</span></div>`;
+    summary.innerHTML = html;
+  }
+
+  placeOrderBtn.addEventListener('click', () => {
+    const name    = document.getElementById('custName').value.trim();
+    const phone   = document.getElementById('custPhone').value.trim();
+    const address = document.getElementById('custAddress').value.trim();
+    const notes   = document.getElementById('custNotes').value.trim();
+
+    if (!name) { alert('Please enter your full name.'); return; }
+    if (!phone) { alert('Please enter your phone number.'); return; }
+    if (cart.length === 0) { alert('Your cart is empty.'); return; }
+
+    const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+
+    // Save order
+    const order = DB.saveOrder({
+      customer: { name, phone, address, notes },
+      items: JSON.parse(JSON.stringify(cart)),
+      total
+    });
+
+    // Deduct stock
+    const products = DB.getProducts();
+    cart.forEach(ci => {
+      const p = products.find(x => x.id === ci.id);
+      if (p) p.stock = Math.max(0, p.stock - ci.qty);
+    });
+    DB.saveProducts(products);
+
+    // Clear cart & form
+    cart = [];
+    DB.clearCart();
+    renderCart();
+    document.getElementById('custName').value = '';
+    document.getElementById('custPhone').value = '';
+    document.getElementById('custAddress').value = '';
+    document.getElementById('custNotes').value = '';
+
+    checkoutOvl.style.display = 'none';
+    successMsg.textContent = `Thank you, ${name}! Your order ${order.id} has been placed. We will call or WhatsApp you on ${phone} to confirm.`;
+    successOvl.style.display = 'flex';
+    renderProducts();
+  });
+
+  closeSuccess.addEventListener('click', () => successOvl.style.display = 'none');
+
+  // ---- FILTERS ----
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.cat;
+      renderProducts();
+    });
+  });
+
+  // ---- ESCAPE KEY ----
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      closeCartDrawer();
+      checkoutOvl.style.display = 'none';
+      successOvl.style.display = 'none';
+      quickviewOvl.style.display = 'none';
+    }
+  });
+
+  // ---- UTILS ----
+  function escHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ---- INIT ----
+  renderCart();
+  renderProducts();
+})();
