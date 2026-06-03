@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DRAPE — Fashion Store</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="logo">DRAPE</a>
+      <nav class="main-nav">
+        <a href="index.html" class="active">Shop</a>
+        <a href="index.html#about">About</a>
+      </nav>
+      <button class="cart-btn" id="cartToggle" aria-label="Open cart">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        <span class="cart-count" id="cartCount">0</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-text">
+      <span class="hero-eyebrow">New Collection</span>
+      <h1>Dressed for<br/><em>every moment</em></h1>
+      <p>Curated fashion for the modern wardrobe. Browse our latest arrivals.</p>
+      <a href="#shop" class="btn-primary">Shop Now</a>
+    </div>
+    <div class="hero-accent"></div>
+  </section>
+
+  <!-- FILTERS -->
+  <section class="shop-section" id="shop">
+    <div class="shop-header">
+      <h2>Our Collection</h2>
+      <div class="filter-bar">
+        <button class="filter-btn active" data-cat="all">All</button>
+        <button class="filter-btn" data-cat="women">Women</button>
+        <button class="filter-btn" data-cat="men">Men</button>
+        <button class="filter-btn" data-cat="kids">Kids</button>
+        <button class="filter-btn" data-cat="accessories">Accessories</button>
+      </div>
+    </div>
+    <div class="product-grid" id="productGrid">
+      <!-- Products injected by JS -->
+    </div>
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <p>No items available yet. Check back soon!</p>
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section class="about-section" id="about">
+    <div class="about-inner">
+      <div class="about-text">
+        <span class="section-label">About DRAPE</span>
+        <h2>Style that speaks<br/>without words</h2>
+        <p>We believe clothing is more than fabric — it's a statement. Every piece in our collection is handpicked for quality, comfort, and timeless appeal.</p>
+      </div>
+      <div class="about-stats">
+        <div class="stat"><strong id="statItems">0</strong><span>Items In Store</span></div>
+        <div class="stat"><strong>100%</strong><span>Quality Assured</span></div>
+        <div class="stat"><strong>Fast</strong><span>Easy Ordering</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span class="logo">DRAPE</span>
+      <p>© 2025 DRAPE Fashion. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- CART DRAWER -->
+  <div class="cart-overlay" id="cartOverlay"></div>
+  <aside class="cart-drawer" id="cartDrawer">
+    <div class="cart-header">
+      <h3>Your Cart</h3>
+      <button class="close-cart" id="closeCart">✕</button>
+    </div>
+    <div class="cart-items" id="cartItems"></div>
+    <div class="cart-footer" id="cartFooter" style="display:none;">
+      <div class="cart-total">
+        Total: <strong id="cartTotal">R0.00</strong>
+      </div>
+      <button class="btn-primary full-width" id="checkoutBtn">Proceed to Checkout</button>
+    </div>
+    <div class="cart-empty" id="cartEmpty">
+      <p>Your cart is empty.</p>
+    </div>
+  </aside>
+
+  <!-- CHECKOUT MODAL -->
+  <div class="modal-overlay" id="checkoutOverlay" style="display:none;">
+    <div class="modal checkout-modal">
+      <button class="modal-close" id="closeCheckout">✕</button>
+      <h2>Complete Your Order</h2>
+      <p class="modal-sub">Please enter your details and we'll contact you to arrange delivery.</p>
+      <div class="order-summary" id="orderSummary"></div>
+      <div class="form-group">
+        <label for="custName">Full Name *</label>
+        <input type="text" id="custName" placeholder="e.g. Thabo Nkosi" />
+      </div>
+      <div class="form-group">
+        <label for="custPhone">Phone Number *</label>
+        <input type="tel" id="custPhone" placeholder="e.g. 071 234 5678" />
+      </div>
+      <div class="form-group">
+        <label for="custAddress">Delivery Address (optional)</label>
+        <textarea id="custAddress" placeholder="Street, City, Province"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="custNotes">Order Notes (optional)</label>
+        <textarea id="custNotes" placeholder="Size preferences, colour choices, etc."></textarea>
+      </div>
+      <button class="btn-primary full-width" id="placeOrderBtn">Place Order</button>
+      <p class="form-disclaimer">We'll call or WhatsApp you to confirm your order.</p>
+    </div>
+  </div>
+
+  <!-- ORDER SUCCESS MODAL -->
+  <div class="modal-overlay" id="successOverlay" style="display:none;">
+    <div class="modal success-modal">
+      <div class="success-icon">✓</div>
+      <h2>Order Placed!</h2>
+      <p id="successMsg"></p>
+      <button class="btn-primary" id="closeSuccess">Continue Shopping</button>
+    </div>
+  </div>
+
+  <!-- PRODUCT QUICKVIEW MODAL -->
+  <div class="modal-overlay" id="quickviewOverlay" style="display:none;">
+    <div class="modal quickview-modal">
+      <button class="modal-close" id="closeQuickview">✕</button>
+      <div class="quickview-inner" id="quickviewInner"></div>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/store.js"></script>
+</body>
+</html>
