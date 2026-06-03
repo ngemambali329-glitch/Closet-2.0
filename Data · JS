@@ -1,0 +1,118 @@
+// ===== DRAPE DATA LAYER =====
+// All data stored in localStorage so it persists across page visits.
+
+const DB = {
+  // --- Products ---
+  getProducts() {
+    try {
+      const raw = localStorage.getItem('drape_products');
+      return raw ? JSON.parse(raw) : this._seedProducts();
+    } catch { return []; }
+  },
+  saveProducts(products) {
+    localStorage.setItem('drape_products', JSON.stringify(products));
+  },
+  addProduct(product) {
+    const products = this.getProducts();
+    product.id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    product.createdAt = Date.now();
+    products.push(product);
+    this.saveProducts(products);
+    return product;
+  },
+  updateProduct(id, data) {
+    const products = this.getProducts();
+    const idx = products.findIndex(p => p.id === id);
+    if (idx !== -1) {
+      products[idx] = { ...products[idx], ...data };
+      this.saveProducts(products);
+      return products[idx];
+    }
+    return null;
+  },
+  deleteProduct(id) {
+    const products = this.getProducts().filter(p => p.id !== id);
+    this.saveProducts(products);
+  },
+
+  // --- Orders ---
+  getOrders() {
+    try {
+      const raw = localStorage.getItem('drape_orders');
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  },
+  saveOrder(order) {
+    const orders = this.getOrders();
+    order.id = 'ORD-' + Date.now().toString().slice(-6);
+    order.createdAt = Date.now();
+    orders.push(order);
+    localStorage.setItem('drape_orders', JSON.stringify(orders));
+    return order;
+  },
+  clearOrders() {
+    localStorage.removeItem('drape_orders');
+  },
+
+  // --- Cart ---
+  getCart() {
+    try {
+      const raw = localStorage.getItem('drape_cart');
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  },
+  saveCart(cart) {
+    localStorage.setItem('drape_cart', JSON.stringify(cart));
+  },
+  clearCart() {
+    localStorage.removeItem('drape_cart');
+  },
+
+  // --- Seed data (shown when store is brand new) ---
+  _seedProducts() {
+    const demos = [
+      {
+        id: 'seed_1', createdAt: Date.now(),
+        name: 'Classic White Linen Blouse',
+        category: 'women',
+        price: 349.99,
+        stock: 8,
+        sizes: 'XS, S, M, L, XL',
+        description: 'A timeless, breathable linen blouse perfect for any occasion. Relaxed fit with elegant button detail.',
+        image: null
+      },
+      {
+        id: 'seed_2', createdAt: Date.now(),
+        name: 'Slim Fit Chino Trousers',
+        category: 'men',
+        price: 449.00,
+        stock: 5,
+        sizes: '30, 32, 34, 36, 38',
+        description: 'Smart casual chino trousers with a slim, tailored cut. Available in multiple sizes.',
+        image: null
+      },
+      {
+        id: 'seed_3', createdAt: Date.now(),
+        name: 'Floral Midi Dress',
+        category: 'women',
+        price: 599.00,
+        stock: 3,
+        sizes: 'S, M, L',
+        description: 'A stunning floral print midi dress with a wrap silhouette. Perfect for summer outings.',
+        image: null
+      },
+      {
+        id: 'seed_4', createdAt: Date.now(),
+        name: 'Kids Denim Dungarees',
+        category: 'kids',
+        price: 249.99,
+        stock: 10,
+        sizes: '3-4yrs, 5-6yrs, 7-8yrs, 9-10yrs',
+        description: 'Durable and adorable denim dungarees for active kids. Easy snap buttons at the side.',
+        image: null
+      }
+    ];
+    this.saveProducts(demos);
+    return demos;
+  }
+};
