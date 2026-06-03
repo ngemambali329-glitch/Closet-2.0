@@ -1,0 +1,305 @@
+// ===== DRAPE ADMIN =====
+
+(function () {
+  'use strict';
+
+  // ---- CHANGE THIS PASSWORD ----
+  const ADMIN_PASSWORD = 'drape2025';
+  // --------------------------------
+
+  const loginScreen   = document.getElementById('loginScreen');
+  const adminDash     = document.getElementById('adminDash');
+  const adminPassEl   = document.getElementById('adminPass');
+  const loginBtn      = document.getElementById('loginBtn');
+  const loginError    = document.getElementById('loginError');
+
+  // Check if already logged in this session
+  if (sessionStorage.getItem('drape_admin') === 'yes') {
+    showDash();
+  }
+
+  loginBtn.addEventListener('click', doLogin);
+  adminPassEl.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+  function doLogin() {
+    if (adminPassEl.value === ADMIN_PASSWORD) {
+      sessionStorage.setItem('drape_admin', 'yes');
+      loginError.style.display = 'none';
+      showDash();
+    } else {
+      loginError.style.display = 'block';
+      adminPassEl.value = '';
+      adminPassEl.focus();
+    }
+  }
+
+  function showDash() {
+    loginScreen.style.display = 'none';
+    adminDash.style.display = 'flex';
+    renderProducts();
+    renderOrders();
+    updateStats();
+  }
+
+  // ---- NAVIGATION ----
+  document.querySelectorAll('.nav-item[data-section]').forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      document.querySelectorAll('.nav-item').forEach(l => l.classList.remove('active'));
+      link.classList.add('active');
+      const sec = link.dataset.section;
+      document.querySelectorAll('.admin-section').forEach(s => s.style.display = 'none');
+      document.getElementById('section-' + sec).style.display = 'block';
+    });
+  });
+
+  // ---- STATS ----
+  function updateStats() {
+    const products = DB.getProducts();
+    const orders   = DB.getOrders();
+    document.getElementById('aStat1').textContent = products.length;
+    document.getElementById('aStat2').textContent = products.filter(p => p.stock > 0).length;
+    document.getElementById('aStat3').textContent = orders.length;
+  }
+
+  // ---- PRODUCTS ----
+  function renderProducts() {
+    const list = document.getElementById('adminProductList');
+    const products = DB.getProducts();
+    list.innerHTML = '';
+
+    if (products.length === 0) {
+      list.innerHTML = '<p style="color:var(--ink-light);padding:2rem 0;">No products yet. Add your first product!</p>';
+      return;
+    }
+
+    products.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'admin-product-row';
+
+      const imgHtml = p.image
+        ? `<img class="admin-product-row-img" src="${p.image}" alt="${escHtml(p.name)}"/>`
+        : `<div class="admin-product-row-img" style="display:flex;align-items:center;justify-content:center;font-size:1.8rem;">👗</div>`;
+
+      const stockClass = p.stock > 0 ? 'in' : 'out';
+      const stockLabel = p.stock > 0 ? `${p.stock} in stock` : 'Out of stock';
+
+      row.innerHTML = `
+        ${imgHtml}
+        <div class="admin-product-row-info">
+          <div class="admin-product-row-name">${escHtml(p.name)}</div>
+          <div class="admin-product-row-meta">${escHtml(p.category)} • ${escHtml(p.sizes || 'No sizes listed')}</div>
+        </div>
+        <span class="admin-product-row-price">R${Number(p.price).toFixed(2)}</span>
+        <span class="stock-badge ${stockClass}">${stockLabel}</span>
+        <div class="admin-row-actions">
+          <button class="icon-btn edit-btn" data-id="${p.id}">Edit</button>
+          <button class="icon-btn delete delete-btn" data-id="${p.id}">Delete</button>
+        </div>`;
+
+      row.querySelector('.edit-btn').addEventListener('click', () => openEditModal(p.id));
+      row.querySelector('.delete-btn').addEventListener('click', () => confirmDelete(p.id));
+      list.appendChild(row);
+    });
+  }
+
+  // ---- ADD/EDIT PRODUCT MODAL ----
+  let currentImageBase64 = null;
+
+  const productModalOvl = document.getElementById('productModalOverlay');
+  const productModalTitle = document.getElementById('productModalTitle');
+  const closeProductModal = document.getElementById('closeProductModal');
+  const cancelProductModal = document.getElementById('cancelProductModal');
+  const saveProductBtn = document.getElementById('saveProductBtn');
+  const imageUploadArea = document.getElementById('imageUploadArea');
+  const pImageInput = document.getElementById('pImage');
+  const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+  const imagePreview = document.getElementById('imagePreview');
+
+  document.getElementById('openAddProduct').addEventListener('click', openAddModal);
+  closeProductModal.addEventListener('click', closeModal);
+  cancelProductModal.addEventListener('click', closeModal);
+  productModalOvl.addEventListener('click', e => { if (e.target === productModalOvl) closeModal(); });
+
+  imageUploadArea.addEventListener('click', () => pImageInput.click());
+  imageUploadArea.addEventListener('dragover', e => { e.preventDefault(); imageUploadArea.style.borderColor = 'var(--accent)'; });
+  imageUploadArea.addEventListener('dragleave', () => imageUploadArea.style.borderColor = '');
+  imageUploadArea.addEventListener('drop', e => {
+    e.preventDefault();
+    imageUploadArea.style.borderColor = '';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) handleImageFile(file);
+  });
+  pImageInput.addEventListener('change', () => {
+    if (pImageInput.files[0]) handleImageFile(pImageInput.files[0]);
+  });
+
+  function handleImageFile(file) {
+    if (file.size > 5 * 1024 * 1024) { alert('Image must be under 5MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      currentImageBase64 = reader.result;
+      imagePreview.src = reader.result;
+      imagePreview.style.display = 'block';
+      uploadPlaceholder.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function openAddModal() {
+    clearForm();
+    productModalTitle.textContent = 'Add New Product';
+    document.getElementById('pEditId').value = '';
+    productModalOvl.style.display = 'flex';
+  }
+
+  function openEditModal(id) {
+    const p = DB.getProducts().find(x => x.id === id);
+    if (!p) return;
+    clearForm();
+    productModalTitle.textContent = 'Edit Product';
+    document.getElementById('pName').value = p.name || '';
+    document.getElementById('pCategory').value = p.category || 'women';
+    document.getElementById('pPrice').value = p.price || '';
+    document.getElementById('pStock').value = p.stock || 0;
+    document.getElementById('pSizes').value = p.sizes || '';
+    document.getElementById('pDesc').value = p.description || '';
+    document.getElementById('pEditId').value = p.id;
+    if (p.image) {
+      currentImageBase64 = p.image;
+      imagePreview.src = p.image;
+      imagePreview.style.display = 'block';
+      uploadPlaceholder.style.display = 'none';
+    }
+    productModalOvl.style.display = 'flex';
+  }
+
+  function clearForm() {
+    document.getElementById('pName').value = '';
+    document.getElementById('pCategory').value = 'women';
+    document.getElementById('pPrice').value = '';
+    document.getElementById('pStock').value = '';
+    document.getElementById('pSizes').value = '';
+    document.getElementById('pDesc').value = '';
+    document.getElementById('pEditId').value = '';
+    currentImageBase64 = null;
+    imagePreview.style.display = 'none';
+    imagePreview.src = '';
+    uploadPlaceholder.style.display = 'block';
+    pImageInput.value = '';
+  }
+
+  function closeModal() {
+    productModalOvl.style.display = 'none';
+  }
+
+  saveProductBtn.addEventListener('click', () => {
+    const name     = document.getElementById('pName').value.trim();
+    const category = document.getElementById('pCategory').value;
+    const price    = parseFloat(document.getElementById('pPrice').value);
+    const stock    = parseInt(document.getElementById('pStock').value, 10);
+    const sizes    = document.getElementById('pSizes').value.trim();
+    const desc     = document.getElementById('pDesc').value.trim();
+    const editId   = document.getElementById('pEditId').value;
+
+    if (!name) { alert('Please enter a product name.'); return; }
+    if (isNaN(price) || price < 0) { alert('Please enter a valid price.'); return; }
+    if (isNaN(stock) || stock < 0) { alert('Please enter a valid stock quantity.'); return; }
+
+    const data = { name, category, price, stock, sizes, description: desc, image: currentImageBase64 };
+
+    if (editId) {
+      DB.updateProduct(editId, data);
+    } else {
+      DB.addProduct(data);
+    }
+
+    closeModal();
+    renderProducts();
+    updateStats();
+  });
+
+  // ---- DELETE ----
+  const deleteOverlay  = document.getElementById('deleteOverlay');
+  const cancelDelete   = document.getElementById('cancelDelete');
+  const confirmDeleteBtn = document.getElementById('confirmDelete');
+  let deleteTargetId = null;
+
+  function confirmDelete(id) {
+    deleteTargetId = id;
+    deleteOverlay.style.display = 'flex';
+  }
+  cancelDelete.addEventListener('click', () => { deleteOverlay.style.display = 'none'; deleteTargetId = null; });
+  confirmDeleteBtn.addEventListener('click', () => {
+    if (deleteTargetId) {
+      DB.deleteProduct(deleteTargetId);
+      deleteTargetId = null;
+      deleteOverlay.style.display = 'none';
+      renderProducts();
+      updateStats();
+    }
+  });
+
+  // ---- ORDERS ----
+  function renderOrders() {
+    const list = document.getElementById('adminOrderList');
+    const orders = DB.getOrders().slice().reverse();
+    list.innerHTML = '';
+
+    if (orders.length === 0) {
+      list.innerHTML = '<div class="no-orders"><p>No orders yet.</p></div>';
+      return;
+    }
+
+    orders.forEach(o => {
+      const card = document.createElement('div');
+      card.className = 'admin-order-card';
+      const date = new Date(o.createdAt).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' });
+      const itemsList = o.items.map(i => `${escHtml(i.name)} × ${i.qty}`).join(', ');
+      card.innerHTML = `
+        <div class="admin-order-header">
+          <span class="admin-order-num">${escHtml(o.id)}</span>
+          <span class="admin-order-date">${date}</span>
+        </div>
+        <div class="admin-order-customer">
+          <strong>${escHtml(o.customer.name)}</strong>
+          <span>📞 ${escHtml(o.customer.phone)}</span>
+          ${o.customer.address ? `<br/><span style="font-size:.8rem;color:var(--ink-light)">📍 ${escHtml(o.customer.address)}</span>` : ''}
+          ${o.customer.notes ? `<br/><span style="font-size:.8rem;color:var(--ink-light)">💬 ${escHtml(o.customer.notes)}</span>` : ''}
+        </div>
+        <div class="admin-order-items">${itemsList}</div>
+        <div class="admin-order-total">R${Number(o.total).toFixed(2)}</div>`;
+      list.appendChild(card);
+    });
+  }
+
+  document.getElementById('clearOrdersBtn').addEventListener('click', () => {
+    if (confirm('Clear all orders? This cannot be undone.')) {
+      DB.clearOrders();
+      renderOrders();
+      updateStats();
+    }
+  });
+
+  // ---- ESCAPE ----
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      closeModal();
+      deleteOverlay.style.display = 'none';
+    }
+  });
+
+  // ---- UTILS ----
+  function escHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Re-render orders when switching to Orders tab
+  document.querySelector('[data-section="orders"]').addEventListener('click', renderOrders);
+
+})();
